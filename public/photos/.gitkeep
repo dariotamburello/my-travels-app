@@ -1,0 +1,2 @@
+# Coloca tus fotos con metadatos GPS en esta carpeta
+# Luego ejecuta: npm run generate:map-data
