@@ -145,7 +145,7 @@ async function generateMapData() {
   console.log("📸 Generando map-data.json...");
 
   const photosDir = join(process.cwd(), "public", "photos");
-  const outputPath = join(process.cwd(), "public", "map-data.json");
+  const outputPath = join(process.cwd(), "src", "data", "map-data.json");
 
   try {
     // Leer archivos de la carpeta photos
@@ -154,12 +154,35 @@ async function generateMapData() {
 
     console.log(`📁 Encontradas ${imageFiles.length} imágenes`);
 
-    const photoPoints = [];
+    // Cargar datos existentes
+    let existingPhotoPoints = [];
+    let processedIds = new Set();
+
+    try {
+      const existingData = await readFile(outputPath, "utf-8");
+      existingPhotoPoints = JSON.parse(existingData);
+      processedIds = new Set(existingPhotoPoints.map((p) => p.id));
+      console.log(`♻️  Encontradas ${processedIds.size} fotos ya procesadas`);
+    } catch {
+      console.log(
+        "ℹ️  No existe map-data.json previo, procesando todas las fotos",
+      );
+    }
+
+    const photoPoints = [...existingPhotoPoints];
     let processedCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
 
     // Procesar cada imagen
     for (const filename of imageFiles) {
+      // Si ya fue procesada, saltar
+      if (processedIds.has(filename)) {
+        console.log(`⏭️  ${filename}: Ya procesada, omitiendo`);
+        skippedCount++;
+        continue;
+      }
+
       const imagePath = join(photosDir, filename);
       const result = await extractExifMetadata(imagePath);
 
@@ -215,10 +238,11 @@ async function generateMapData() {
     await writeFile(outputPath, JSON.stringify(photoPoints, null, 2), "utf-8");
 
     console.log(`\n✨ Proceso completado:`);
-    console.log(`   - Procesadas exitosamente: ${processedCount}`);
+    console.log(`   - Procesadas nuevas: ${processedCount}`);
+    console.log(`   - Omitidas (ya procesadas): ${skippedCount}`);
     console.log(`   - Con errores: ${errorCount}`);
-    console.log(`   - Total: ${imageFiles.length}`);
-    console.log(`   - Archivo generado: public/map-data.json\n`);
+    console.log(`   - Total en archivo: ${photoPoints.length}`);
+    console.log(`   - Archivo generado: src/data/map-data.json\n`);
   } catch (error) {
     console.error("💥 Error fatal al generar map-data.json:", error);
 

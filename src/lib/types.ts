@@ -45,3 +45,23 @@ export interface ExifResult {
   /** Indica si hubo errores en la extracción */
   error?: string;
 }
+
+/**
+ * Representa un viaje con su itinerario y fechas
+ */
+export interface Trip {
+  /** Identificador único del viaje */
+  id: string;
+  /** Nombre del viaje */
+  name: string;
+  /** Descripción del viaje */
+  description: string;
+  /** Fecha de inicio (ISO 8601) */
+  startDate: string;
+  /** Fecha de finalización (ISO 8601) */
+  endDate: string;
+  /** País o ciudad de origen */
+  origin: string;
+  /** Lista de ciudades visitadas en orden */
+  itinerary: string[];
+}
