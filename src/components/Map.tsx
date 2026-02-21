@@ -24,6 +24,7 @@ interface MapProps {
   photoPoints: PhotoPoint[];
   center?: LatLngExpression;
   zoom?: number;
+  showTripRoute?: boolean;
 }
 
 /**
@@ -35,6 +36,7 @@ export default function Map({
   photoPoints,
   center = [0, 0],
   zoom = 2,
+  showTripRoute = false,
 }: MapProps) {
   const router = useRouter();
   const mapRef = useRef<L.Map | null>(null);
@@ -63,6 +65,7 @@ export default function Map({
       ],
       maxBoundsViscosity: 1.0,
       minZoom: 2,
+      maxZoom: 18,
     }).setView([0, 0], 2); // Vista por defecto
 
     mapRef.current = map;
@@ -74,7 +77,8 @@ export default function Map({
         attribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: "abcd",
-        maxZoom: 20,
+        minZoom: 2,
+        maxZoom: 19,
       },
     ).addTo(map);
 
@@ -118,6 +122,10 @@ export default function Map({
 
       if (
         layer instanceof L.MarkerClusterGroup ||
+        (layer instanceof L.Polyline &&
+          ["trip-route-glow", "trip-route-core"].includes(
+            String((layer.options as { className?: string })?.className ?? ""),
+          )) ||
         layerWithClass.options?.className === "custom-marker"
       ) {
         map.removeLayer(layer);
@@ -143,7 +151,7 @@ export default function Map({
         return L.divIcon({
           html: `
             <div class="cluster-marker-wrapper">
-              <div class="cluster-photo" style="background-image: url('${imageUrl}')"></div>
+              <img class="cluster-photo" src="${imageUrl}" alt="Cluster preview" />
               <div class="cluster-badge">${count}</div>
             </div>
           `,
@@ -158,11 +166,14 @@ export default function Map({
     // Agregar marcadores al grupo de clusters
     photoPoints.forEach((point) => {
       const thumbUrl = getThumbUrl(point);
+      const favoriteClass = point.isFavorite ? "is-favorite" : "";
 
       const icon = new DivIcon({
         html: `
           <div class="photo-marker-wrapper">
-            <div class="photo-marker" style="background-image: url('${thumbUrl}')"></div>
+            <div class="photo-marker ${favoriteClass}">
+              <img class="photo-marker-image" src="${thumbUrl}" alt="Foto en mapa" />
+            </div>
           </div>
         `,
         className: "custom-marker",
@@ -202,12 +213,54 @@ export default function Map({
     // Agregar el grupo de clusters al mapa
     map.addLayer(markers);
 
+    if (showTripRoute) {
+      const routePoints = [...photoPoints]
+        .map((point) => {
+          const timestamp =
+            typeof point.timestamp === "number" && Number.isFinite(point.timestamp)
+              ? point.timestamp
+              : point.dateTime
+                ? new Date(point.dateTime).getTime()
+                : Number.NaN;
+
+          return {
+            latitude: point.latitude,
+            longitude: point.longitude,
+            timestamp,
+          };
+        })
+        .filter((point) => Number.isFinite(point.timestamp))
+        .sort((a, b) => a.timestamp - b.timestamp)
+        .map((point) => [point.latitude, point.longitude] as [number, number]);
+
+      if (routePoints.length >= 2) {
+        const glowLine = L.polyline(routePoints, {
+          color: "#3b82f6",
+          weight: 6,
+          opacity: 0.3,
+          className: "trip-route-glow",
+        });
+
+        const coreLine = L.polyline(routePoints, {
+          color: "#60a5fa",
+          weight: 2,
+          opacity: 1,
+          dashArray: "8, 8",
+          lineCap: "round",
+          className: "trip-route-core route-line-animated",
+        });
+
+        glowLine.addTo(map);
+        coreLine.addTo(map);
+      }
+    }
+
     // Ajustar vista SOLO la primera vez que hay puntos
     if (!hasSetInitialView.current && photoPoints.length > 0) {
       hasSetInitialView.current = true;
       map.setView(mapCenter, mapZoom);
     }
-  }, [photoPoints, center, zoom]);
+  }, [photoPoints, center, zoom, showTripRoute]);
 
   const handleDeletePhoto = async () => {
     if (!photoToDelete || isDeleting) {
@@ -243,6 +296,48 @@ export default function Map({
   return (
     <>
       <style jsx global>{`
+        .map-shell {
+          position: relative;
+          height: 100%;
+          width: 100%;
+          background: #000;
+          overflow: hidden;
+        }
+
+        .map-canvas {
+          position: absolute;
+          inset: 0;
+          height: 100%;
+          width: 100%;
+          background: #000;
+        }
+
+        .map-canvas .leaflet-tile-pane {
+          filter: grayscale(100%) invert(100%) brightness(85%) contrast(115%);
+        }
+
+        .route-line-animated {
+          animation: dash-flow 1.5s linear infinite;
+        }
+
+        @keyframes dash-flow {
+          to {
+            stroke-dashoffset: -16;
+          }
+        }
+
+        .map-vignette {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          z-index: 450;
+          background: radial-gradient(
+            circle at center,
+            transparent 55%,
+            rgb(0 0 0 / 0.35) 100%
+          );
+        }
+
         .custom-marker {
           background: transparent;
           border: none;
@@ -253,11 +348,12 @@ export default function Map({
           height: 50px;
           position: relative;
           cursor: pointer;
+          overflow: visible;
           transition: transform 0.2s ease;
         }
 
         .photo-marker-wrapper:hover {
-          transform: scale(1.15);
+          transform: scale(1.1);
           z-index: 1000;
         }
 
@@ -265,25 +361,38 @@ export default function Map({
           width: 100%;
           height: 100%;
           border-radius: 50%;
-          background-size: cover;
-          background-position: center;
           border: 3px solid white;
-          box-shadow:
-            0 4px 6px -1px rgb(0 0 0 / 0.1),
-            0 2px 4px -2px rgb(0 0 0 / 0.1);
+          overflow: hidden;
+          background: #18181b;
+          box-shadow: 0 8px 15px rgb(0 0 0 / 0.5);
           transition: box-shadow 0.2s ease;
         }
 
-        .photo-marker-wrapper:hover .photo-marker {
+        .photo-marker-image {
+          width: 100%;
+          height: 100%;
+          display: block;
+          object-fit: cover;
+        }
+
+        .photo-marker.is-favorite {
+          border-color: #f59e0b;
           box-shadow:
-            0 10px 15px -3px rgb(0 0 0 / 0.15),
-            0 4px 6px -4px rgb(0 0 0 / 0.1);
+            0 0 0 2px rgb(251 191 36 / 0.45),
+            0 8px 15px rgb(0 0 0 / 0.5);
+        }
+
+        .photo-marker-wrapper:hover .photo-marker {
+          box-shadow: 0 10px 20px rgb(0 0 0 / 0.55);
         }
 
         .leaflet-popup-content-wrapper {
           border-radius: 12px;
           overflow: hidden;
           padding: 0;
+          background: rgb(24 24 27 / 0.96);
+          border: 1px solid rgb(255 255 255 / 0.08);
+          backdrop-filter: blur(8px);
         }
 
         .leaflet-popup-content {
@@ -309,13 +418,13 @@ export default function Map({
 
         .photo-popup-info {
           padding: 12px 16px;
-          background: white;
+          background: rgb(24 24 27 / 0.96);
         }
 
         .photo-popup-location {
           font-weight: 600;
           font-size: 15px;
-          color: #1f2937;
+          color: #f4f4f5;
           margin-bottom: 6px;
           display: flex;
           align-items: center;
@@ -331,12 +440,12 @@ export default function Map({
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          color: #6b7280;
+          color: #a1a1aa;
           transition: color 0.2s;
         }
 
         .photo-popup-delete:hover {
-          color: #dc2626;
+          color: #fb7185;
         }
 
         .info-button {
@@ -347,13 +456,13 @@ export default function Map({
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          color: #6b7280;
+          color: #a1a1aa;
           transition: color 0.2s;
           position: relative;
         }
 
         .info-button:hover {
-          color: #4f46e5;
+          color: #818cf8;
         }
 
         .tooltip {
@@ -389,19 +498,19 @@ export default function Map({
 
         .photo-popup-place {
           font-size: 13px;
-          color: #6b7280;
+          color: #a1a1aa;
           margin-bottom: 6px;
         }
 
         .photo-popup-date {
           font-size: 12px;
-          color: #9ca3af;
+          color: #a1a1aa;
           margin-bottom: 6px;
         }
 
         .photo-popup-coords {
           font-size: 11px;
-          color: #9ca3af;
+          color: #71717a;
           margin-top: 4px;
           font-family: monospace;
         }
@@ -426,20 +535,17 @@ export default function Map({
           width: 100%;
           height: 100%;
           border-radius: 50%;
-          background-size: cover;
-          background-position: center;
+          object-fit: cover;
+          display: block;
           border: 3px solid white;
-          box-shadow:
-            0 4px 6px -1px rgb(0 0 0 / 0.2),
-            0 2px 4px -2px rgb(0 0 0 / 0.1);
+          overflow: hidden;
+          box-shadow: 0 8px 15px rgb(0 0 0 / 0.5);
           transition: all 0.2s ease;
         }
 
         .cluster-marker-wrapper:hover .cluster-photo {
-          transform: scale(1.15);
-          box-shadow:
-            0 10px 15px -3px rgb(0 0 0 / 0.25),
-            0 4px 6px -4px rgb(0 0 0 / 0.1);
+          transform: scale(1.1);
+          box-shadow: 0 10px 20px rgb(0 0 0 / 0.55);
         }
 
         .cluster-badge {
@@ -474,6 +580,40 @@ export default function Map({
         .marker-cluster-large div {
           background-color: transparent !important;
         }
+
+        .leaflet-control-zoom {
+          border: 1px solid rgb(255 255 255 / 0.14) !important;
+          border-radius: 14px !important;
+          overflow: hidden;
+          backdrop-filter: blur(8px);
+          background: rgb(17 24 39 / 0.6);
+          box-shadow: 0 10px 25px rgb(0 0 0 / 0.35);
+        }
+
+        .leaflet-control-zoom a {
+          background: rgb(17 24 39 / 0.58) !important;
+          color: #f4f4f5 !important;
+          border-bottom: 1px solid rgb(255 255 255 / 0.1) !important;
+          transition: background 0.2s ease;
+        }
+
+        .leaflet-control-zoom a:last-child {
+          border-bottom: none !important;
+        }
+
+        .leaflet-control-zoom a:hover {
+          background: rgb(63 63 70 / 0.72) !important;
+        }
+
+        .leaflet-control-attribution {
+          background: rgb(0 0 0 / 0.22) !important;
+          color: rgb(212 212 216 / 0.5) !important;
+          backdrop-filter: blur(6px);
+        }
+
+        .leaflet-control-attribution a {
+          color: rgb(212 212 216 / 0.66) !important;
+        }
       `}</style>
 
       <PhotoFullScreen
@@ -499,7 +639,10 @@ export default function Map({
         }}
       />
 
-      <div ref={containerRef} style={{ height: "100%", width: "100%" }} />
+      <div className="map-shell">
+        <div ref={containerRef} className="map-canvas" />
+        <div className="map-vignette" />
+      </div>
     </>
   );
 }

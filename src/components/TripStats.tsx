@@ -2,6 +2,8 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Trip, PhotoPoint } from "../lib/types";
+import ModalShell from "./ui/ModalShell";
+import { SecondaryButton } from "./ui/ModalButtons";
 
 interface TripStatsProps {
   isOpen: boolean;
@@ -66,19 +68,19 @@ export default function TripStats({
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-9999 w-full max-w-md"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-zinc-200">
+            <ModalShell className="max-w-md overflow-hidden p-0">
               {/* Header del modal */}
-              <div className="bg-linear-to-r from-indigo-600 to-purple-600 px-6 py-5 text-white">
+              <div className="border-b border-white/10 px-6 py-5 text-white">
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-xl font-bold mb-1">
                       Estadísticas del Viaje
                     </h2>
-                    <p className="text-indigo-100 text-sm">{trip.name}</p>
+                    <p className="text-zinc-400 text-sm">{trip.name}</p>
                   </div>
                   <button
                     onClick={onClose}
-                    className="text-white/80 hover:text-white transition-colors p-1"
+                    className="text-zinc-400 hover:text-white transition-colors p-1"
                   >
                     <svg
                       width="24"
@@ -99,20 +101,20 @@ export default function TripStats({
               {/* Contenido */}
               <div className="p-6 space-y-4">
                 {/* Stat Card - Días totales */}
-                <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm text-blue-700 font-medium mb-1">
+                      <p className="text-sm text-zinc-300 font-medium mb-1">
                         Duración Total
                       </p>
-                      <p className="text-3xl font-bold text-blue-900">
+                      <p className="text-3xl font-bold text-zinc-100">
                         {totalDays}
                       </p>
-                      <p className="text-xs text-blue-600 mt-1">días</p>
+                      <p className="text-xs text-zinc-400 mt-1">días</p>
                     </div>
                     <div className="text-4xl">📅</div>
                   </div>
-                  <div className="mt-3 pt-3 border-t border-blue-200 text-xs text-blue-700">
+                  <div className="mt-3 pt-3 border-t border-white/10 text-xs text-zinc-400">
                     {startDate.toLocaleDateString("es-ES", {
                       day: "numeric",
                       month: "short",
@@ -130,52 +132,52 @@ export default function TripStats({
                 {/* Grid de estadísticas */}
                 <div className="grid grid-cols-3 gap-3">
                   {/* Países */}
-                  <div className="bg-linear-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                     <div className="text-2xl mb-2">🌍</div>
-                    <p className="text-2xl font-bold text-green-900">
+                    <p className="text-2xl font-bold text-zinc-100">
                       {totalCountries}
                     </p>
-                    <p className="text-xs text-green-700 mt-1">países</p>
+                    <p className="text-xs text-zinc-400 mt-1">países</p>
                   </div>
 
                   {/* Ciudades con fotos */}
-                  <div className="bg-linear-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                     <div className="text-2xl mb-2">🏙️</div>
-                    <p className="text-2xl font-bold text-purple-900">
+                    <p className="text-2xl font-bold text-zinc-100">
                       {totalCitiesWithPhotos}
                     </p>
-                    <p className="text-xs text-purple-700 mt-1">ciudades</p>
+                    <p className="text-xs text-zinc-400 mt-1">ciudades</p>
                   </div>
 
                   {/* Fotos */}
-                  <div className="bg-linear-to-br from-pink-50 to-pink-100 rounded-xl p-4 border border-pink-200">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                     <div className="text-2xl mb-2">📸</div>
-                    <p className="text-2xl font-bold text-pink-900">
+                    <p className="text-2xl font-bold text-zinc-100">
                       {totalPhotos}
                     </p>
-                    <p className="text-xs text-pink-700 mt-1">fotos</p>
+                    <p className="text-xs text-zinc-400 mt-1">fotos</p>
                   </div>
                 </div>
 
                 {/* Itinerario Preview */}
-                <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
-                  <p className="text-sm font-semibold text-zinc-700 mb-2">
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm font-semibold text-zinc-200 mb-2">
                     📍 Itinerario Planeado
                   </p>
-                  <p className="text-xs text-zinc-600">
+                  <p className="text-xs text-zinc-400">
                     {trip.itinerary.length} ciudades visitadas
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1">
                     {trip.itinerary.slice(0, 8).map((city, index) => (
                       <span
                         key={index}
-                        className="inline-block bg-white text-zinc-700 text-xs px-2 py-1 rounded-full border border-zinc-200"
+                        className="inline-block rounded-full border border-white/10 bg-white/10 px-2 py-1 text-xs text-zinc-200"
                       >
                         {city}
                       </span>
                     ))}
                     {trip.itinerary.length > 8 && (
-                      <span className="inline-block bg-zinc-200 text-zinc-600 text-xs px-2 py-1 rounded-full">
+                      <span className="inline-block rounded-full bg-white/10 px-2 py-1 text-xs text-zinc-300">
                         +{trip.itinerary.length - 8} más
                       </span>
                     )}
@@ -184,15 +186,15 @@ export default function TripStats({
               </div>
 
               {/* Footer */}
-              <div className="bg-zinc-50 px-6 py-4 border-t border-zinc-200">
-                <button
+              <div className="px-6 py-4 border-t border-white/10">
+                <SecondaryButton
                   onClick={onClose}
-                  className="w-full bg-linear-to-r from-indigo-600 to-purple-600 text-white py-2.5 rounded-lg font-medium hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 shadow-sm hover:shadow-md"
+                  className="w-full"
                 >
                   Cerrar
-                </button>
+                </SecondaryButton>
               </div>
-            </div>
+            </ModalShell>
           </motion.div>
         </>
       )}

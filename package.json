@@ -4,12 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run generate:map-data && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "generate:map-data": "node scripts/generate-map-data.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.995.0",
     "@types/leaflet.markercluster": "^1.5.6",
     "browser-image-compression": "^2.0.2",
     "exifr": "^7.1.3",

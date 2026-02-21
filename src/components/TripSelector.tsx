@@ -2,6 +2,8 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Trip } from "../lib/types";
+import ModalShell from "./ui/ModalShell";
+import { SecondaryButton } from "./ui/ModalButtons";
 
 interface TripSelectorProps {
   isOpen: boolean;
@@ -40,19 +42,19 @@ export default function TripSelector({
             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-9999 w-full max-w-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-zinc-200">
+            <ModalShell className="max-w-lg overflow-hidden p-0">
               {/* Header */}
-              <div className="bg-linear-to-r from-indigo-600 to-purple-600 px-6 py-5 text-white">
+              <div className="border-b border-white/10 px-6 py-5 text-white">
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="text-xl font-bold mb-1">Mis Viajes</h2>
-                    <p className="text-indigo-100 text-sm">
+                    <p className="text-zinc-400 text-sm">
                       Selecciona un viaje para explorar
                     </p>
                   </div>
                   <button
                     onClick={onClose}
-                    className="text-white/80 hover:text-white transition-colors p-1"
+                    className="text-zinc-400 hover:text-white transition-colors p-1"
                   >
                     <svg
                       width="24"
@@ -92,8 +94,8 @@ export default function TripSelector({
                       whileTap={{ scale: 0.98 }}
                       className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 ${
                         isActive
-                          ? "bg-linear-to-br from-indigo-50 to-purple-50 border-indigo-400 shadow-md"
-                          : "bg-white border-zinc-200 hover:border-indigo-300 hover:shadow-sm"
+                          ? "bg-white/10 border-[#3b82f6] shadow-md"
+                          : "bg-white/5 border-white/10 hover:border-white/25 hover:bg-white/10"
                       }`}
                     >
                       <div className="flex items-start justify-between mb-2">
@@ -101,20 +103,20 @@ export default function TripSelector({
                           <div className="flex items-center gap-2 mb-1">
                             <h3
                               className={`font-bold text-lg ${
-                                isActive ? "text-indigo-900" : "text-zinc-900"
+                                isActive ? "text-white" : "text-zinc-100"
                               }`}
                             >
                               {trip.name}
                             </h3>
                             {isActive && (
-                              <span className="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+                              <span className="bg-[#3b82f6] text-white text-xs px-2 py-0.5 rounded-full font-medium">
                                 Actual
                               </span>
                             )}
                           </div>
                           <p
                             className={`text-sm mb-3 ${
-                              isActive ? "text-indigo-700" : "text-zinc-600"
+                              isActive ? "text-zinc-300" : "text-zinc-400"
                             }`}
                           >
                             {trip.description}
@@ -126,15 +128,15 @@ export default function TripSelector({
                       <div className="grid grid-cols-3 gap-2 text-xs">
                         <div
                           className={`p-2 rounded-lg ${
-                            isActive ? "bg-white/50" : "bg-zinc-50"
+                            isActive ? "bg-white/10" : "bg-black/20"
                           }`}
                         >
-                          <div className="font-semibold text-zinc-900">
+                          <div className="font-semibold text-zinc-100">
                             {totalDays}
                           </div>
                           <div
                             className={
-                              isActive ? "text-indigo-700" : "text-zinc-600"
+                              isActive ? "text-zinc-300" : "text-zinc-400"
                             }
                           >
                             días
@@ -142,15 +144,15 @@ export default function TripSelector({
                         </div>
                         <div
                           className={`p-2 rounded-lg ${
-                            isActive ? "bg-white/50" : "bg-zinc-50"
+                            isActive ? "bg-white/10" : "bg-black/20"
                           }`}
                         >
-                          <div className="font-semibold text-zinc-900">
+                          <div className="font-semibold text-zinc-100">
                             {trip.itinerary.length}
                           </div>
                           <div
                             className={
-                              isActive ? "text-indigo-700" : "text-zinc-600"
+                              isActive ? "text-zinc-300" : "text-zinc-400"
                             }
                           >
                             ciudades
@@ -158,15 +160,15 @@ export default function TripSelector({
                         </div>
                         <div
                           className={`p-2 rounded-lg ${
-                            isActive ? "bg-white/50" : "bg-zinc-50"
+                            isActive ? "bg-white/10" : "bg-black/20"
                           }`}
                         >
-                          <div className="font-semibold text-zinc-900">
+                          <div className="font-semibold text-zinc-100">
                             {trip.origin}
                           </div>
                           <div
                             className={
-                              isActive ? "text-indigo-700" : "text-zinc-600"
+                              isActive ? "text-zinc-300" : "text-zinc-400"
                             }
                           >
                             origen
@@ -178,8 +180,8 @@ export default function TripSelector({
                       <div
                         className={`mt-3 pt-3 border-t text-xs ${
                           isActive
-                            ? "border-indigo-200 text-indigo-700"
-                            : "border-zinc-200 text-zinc-600"
+                            ? "border-white/15 text-zinc-300"
+                            : "border-white/10 text-zinc-400"
                         }`}
                       >
                         {startDate.toLocaleDateString("es-ES", {
@@ -200,15 +202,15 @@ export default function TripSelector({
               </div>
 
               {/* Footer */}
-              <div className="bg-zinc-50 px-6 py-4 border-t border-zinc-200">
-                <button
+              <div className="px-6 py-4 border-t border-white/10">
+                <SecondaryButton
                   onClick={onClose}
-                  className="w-full bg-zinc-200 text-zinc-700 py-2.5 rounded-lg font-medium hover:bg-zinc-300 transition-all duration-200"
+                  className="w-full"
                 >
                   Cancelar
-                </button>
+                </SecondaryButton>
               </div>
-            </div>
+            </ModalShell>
           </motion.div>
         </>
       )}

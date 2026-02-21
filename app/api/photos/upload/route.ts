@@ -1,124 +1,95 @@
-import { promises as fs } from "fs";
-import path from "path";
+import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { NextResponse } from "next/server";
 import sharp from "sharp";
+import { queryD1 } from "@/src/lib/d1-client";
+import { getR2Client, getR2Config } from "@/src/lib/r2";
 
-interface StoredPhotoPoint {
-  id: string;
-  thumbUrl?: string;
-  previewUrl?: string;
-  fullUrl?: string;
-  imagePath?: string;
-  latitude: number;
-  longitude: number;
-  dateTime?: string;
-  timestamp?: number;
-  title?: string;
-  location?: {
-    country?: string | null;
-    city?: string | null;
-    name?: string | null;
-    county?: string | null;
-    label?: string | null;
-  } | null;
-}
-
-function getMapDataPaths() {
-  const root = process.cwd();
-  return {
-    srcDataPath: path.join(root, "src", "data", "map-data.json"),
-  };
-}
-
-async function readMapData(): Promise<StoredPhotoPoint[]> {
-  const { srcDataPath } = getMapDataPaths();
-
-  try {
-    const srcRaw = await fs.readFile(srcDataPath, "utf-8");
-    const parsed = JSON.parse(srcRaw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-async function writeMapData(points: StoredPhotoPoint[]): Promise<void> {
-  const { srcDataPath } = getMapDataPaths();
-
-  const serialized = JSON.stringify(points, null, 2);
-
-  await fs.mkdir(path.dirname(srcDataPath), { recursive: true });
-
-  await fs.writeFile(srcDataPath, serialized, "utf-8");
-}
+const DEMO_USER_ID = "user-123";
 
 async function reverseGeocode(lat: number, lon: number) {
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=geocodejson&lat=${lat}&lon=${lon}`;
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=es`;
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "GeoGallery/1.0 (photo mapping app)",
-        "Accept-Language": "es",
+        "User-Agent": "GeoGallery/1.0 (dariotamburello@hotmail.com)",
       },
+      cache: "no-store",
     });
 
     if (!response.ok) {
       return null;
     }
 
-    const data = (await response.json()) as {
-      features?: Array<{
-        properties?: {
-          geocoding?: {
-            country?: string;
-            city?: string;
-            name?: string;
-            county?: string;
-            label?: string;
-          };
-        };
-      }>;
-    };
-
-    const geocoding = data.features?.[0]?.properties?.geocoding;
-    if (!geocoding) {
-      return null;
-    }
+    const data = await response.json();
 
     return {
-      country: geocoding.country || null,
-      city: geocoding.city || null,
-      name: geocoding.name || null,
-      county: geocoding.county || null,
-      label: geocoding.label || null,
+      country: data.address?.country || null,
+      city:
+        data.address?.city ||
+        data.address?.town ||
+        data.address?.village ||
+        null,
+      name: data.name || data.address?.road || null,
+      county: data.address?.county || null,
+      label: data.display_name || null,
     };
-  } catch {
+  } catch (error) {
+    console.error("Error en Reverse Geocoding:", error);
     return null;
   }
 }
 
-function buildBaseName(originalName: string): string {
-  const withoutExt = originalName
-    .replace(/\.[^/.]+$/, "")
-    .trim()
-    .toLowerCase();
-  const normalized = withoutExt
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+function parseValidDate(dateTime: string): Date | null {
+  if (!dateTime) {
+    return null;
+  }
 
-  return normalized || `photo_${Date.now()}`;
+  const parsedDate = new Date(dateTime);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return parsedDate;
 }
 
 export async function GET() {
-  const points = await readMapData();
-  const names = points.map((point) => point.id);
-  return NextResponse.json({ names });
+  try {
+    const rows = await queryD1<{ original_filename?: string }>(
+      `
+        SELECT original_filename
+        FROM photos
+        WHERE user_id = ?
+      `,
+      [DEMO_USER_ID],
+    );
+
+    const names = rows
+      .map((row) => String(row.original_filename ?? "").trim())
+      .filter((value) => value.length > 0);
+
+    return NextResponse.json({ names });
+  } catch (error) {
+    console.error("Error al listar nombres en D1:", error);
+    return NextResponse.json({ names: [] }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
   try {
+    let r2Client;
+    let r2Config;
+
+    try {
+      r2Client = getR2Client();
+      r2Config = getR2Config();
+    } catch (error) {
+      console.error("Configuración R2 inválida:", error);
+      return NextResponse.json(
+        { error: "Configuración de Cloudflare R2 incompleta." },
+        { status: 500 },
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file");
 
@@ -132,6 +103,8 @@ export async function POST(request: Request) {
     const originalName = String(
       formData.get("originalName") ?? file.name ?? "",
     ).trim();
+    const tripIdRaw = String(formData.get("tripId") ?? "").trim();
+    const tripId = tripIdRaw.length > 0 ? tripIdRaw : null;
 
     if (!originalName) {
       return NextResponse.json(
@@ -147,23 +120,33 @@ export async function POST(request: Request) {
       );
     }
 
-    const currentPoints = await readMapData();
-    const alreadyExists = currentPoints.some(
-      (point) => point.id.toLowerCase() === originalName.toLowerCase(),
+    const duplicateRows = await queryD1<{ total?: number }>(
+      `
+        SELECT COUNT(1) AS total
+        FROM photos
+        WHERE user_id = ?
+          AND (
+            lower(original_filename) = lower(?)
+            OR lower(original_filename) = lower(?)
+          )
+      `,
+      [DEMO_USER_ID, String(file.name ?? ""), originalName],
     );
 
-    if (alreadyExists) {
+    const duplicateCount = Number(duplicateRows[0]?.total ?? 0);
+    if (duplicateCount > 0) {
       return NextResponse.json(
-        { error: "La foto ya existe en map-data.json.", code: "DUPLICATE" },
+        {
+          error: "Esta foto ya fue subida",
+          code: "DUPLICATE",
+          fileName: originalName,
+          message: `La foto ${originalName} ya está en tu galería`,
+        },
         { status: 409 },
       );
     }
 
     const location = await reverseGeocode(latitude, longitude);
-
-    const photosDir = path.join(process.cwd(), "public", "photos");
-    await fs.mkdir(photosDir, { recursive: true });
-
     const sourceBuffer = Buffer.from(await file.arrayBuffer());
 
     try {
@@ -175,72 +158,125 @@ export async function POST(request: Request) {
       );
     }
 
-    const baseName = buildBaseName(originalName);
-    const fullFilename = `${baseName}.webp`;
-    const previewFilename = `${baseName}-preview.webp`;
-    const thumbFilename = `${baseName}-thumb.webp`;
-
-    const fullOutputPath = path.join(photosDir, fullFilename);
-    const previewOutputPath = path.join(photosDir, previewFilename);
-    const thumbOutputPath = path.join(photosDir, thumbFilename);
+    const storageKey = crypto.randomUUID();
+    const fullObjectKey = `photos/${storageKey}-full.webp`;
+    const previewObjectKey = `photos/${storageKey}-preview.webp`;
+    const thumbObjectKey = `photos/${storageKey}-thumb.webp`;
 
     try {
-      await Promise.all([
+      const [fullBuffer, previewBuffer, thumbBuffer] = await Promise.all([
         sharp(sourceBuffer)
           .resize({ width: 1600, withoutEnlargement: true })
           .webp({ quality: 88 })
-          .toFile(fullOutputPath),
+          .toBuffer(),
         sharp(sourceBuffer)
           .resize({ width: 800, withoutEnlargement: true })
           .webp({ quality: 85 })
-          .toFile(previewOutputPath),
+          .toBuffer(),
         sharp(sourceBuffer)
           .resize(100, 100, { fit: "cover", position: "attention" })
           .webp({ quality: 80 })
-          .toFile(thumbOutputPath),
+          .toBuffer(),
+      ]);
+
+      await Promise.all([
+        r2Client.send(
+          new PutObjectCommand({
+            Bucket: r2Config.bucketName,
+            Key: fullObjectKey,
+            Body: fullBuffer,
+            ContentType: "image/webp",
+            CacheControl: "public, max-age=31536000, immutable",
+          }),
+        ),
+        r2Client.send(
+          new PutObjectCommand({
+            Bucket: r2Config.bucketName,
+            Key: previewObjectKey,
+            Body: previewBuffer,
+            ContentType: "image/webp",
+            CacheControl: "public, max-age=31536000, immutable",
+          }),
+        ),
+        r2Client.send(
+          new PutObjectCommand({
+            Bucket: r2Config.bucketName,
+            Key: thumbObjectKey,
+            Body: thumbBuffer,
+            ContentType: "image/webp",
+            CacheControl: "public, max-age=31536000, immutable",
+          }),
+        ),
       ]);
     } catch (error) {
-      console.error("Error al procesar variantes con sharp:", error);
+      console.error("Error al procesar/subir variantes a R2:", error);
       return NextResponse.json(
-        { error: "No se pudieron generar las variantes de imagen." },
+        { error: "No se pudieron generar o subir las variantes de imagen." },
         { status: 500 },
       );
     }
 
-    const parsedDate = dateTime ? new Date(dateTime) : null;
-    const hasValidDate =
-      parsedDate instanceof Date && !Number.isNaN(parsedDate.getTime());
+    const parsedDate = parseValidDate(dateTime);
+    const publicBaseUrl = r2Config.publicUrl.replace(/\/+$/, "");
+    const fullUrl = `${publicBaseUrl}/photos/${storageKey}-full.webp`;
+    const previewUrl = `${publicBaseUrl}/photos/${storageKey}-preview.webp`;
+    const thumbUrl = `${publicBaseUrl}/photos/${storageKey}-thumb.webp`;
+    const photoId = crypto.randomUUID();
 
-    const fullUrl = `/photos/${fullFilename}`;
-    const previewUrl = `/photos/${previewFilename}`;
-    const thumbUrl = `/photos/${thumbFilename}`;
-
-    const newRecord: StoredPhotoPoint = {
-      id: originalName,
-      fullUrl,
-      previewUrl,
-      thumbUrl,
-      imagePath: fullUrl,
-      latitude,
-      longitude,
-      dateTime: hasValidDate ? parsedDate.toISOString() : undefined,
-      timestamp: hasValidDate ? parsedDate.getTime() : undefined,
-      title: originalName,
-      location,
-    };
-
-    const updatedPoints = [...currentPoints, newRecord].sort((a, b) => {
-      if (!a.timestamp) return 1;
-      if (!b.timestamp) return -1;
-      return a.timestamp - b.timestamp;
-    });
-
-    await writeMapData(updatedPoints);
+    await queryD1(
+      `
+        INSERT INTO photos (
+          id,
+          user_id,
+          trip_id,
+          original_filename,
+          storage_key,
+          latitude,
+          longitude,
+          date_time,
+          timestamp,
+          loc_country,
+          loc_city,
+          loc_name,
+          loc_county,
+          loc_label
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        photoId,
+        DEMO_USER_ID,
+        tripId,
+        originalName,
+        storageKey,
+        latitude,
+        longitude,
+        parsedDate ? parsedDate.toISOString() : null,
+        parsedDate ? parsedDate.getTime() : null,
+        location?.country ?? null,
+        location?.city ?? null,
+        location?.name ?? null,
+        location?.county ?? null,
+        location?.label ?? null,
+      ],
+    );
 
     return NextResponse.json({
       ok: true,
-      point: newRecord,
-      total: updatedPoints.length,
+      point: {
+        id: photoId,
+        storageKey,
+        fullUrl,
+        previewUrl,
+        thumbUrl,
+        imagePath: fullUrl,
+        latitude,
+        longitude,
+        dateTime: parsedDate ? parsedDate.toISOString() : undefined,
+        timestamp: parsedDate ? parsedDate.getTime() : undefined,
+        title: originalName,
+        location,
+      },
     });
   } catch (error) {
     console.error("Error al subir foto:", error);
@@ -253,6 +289,20 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    let r2Client;
+    let r2Config;
+
+    try {
+      r2Client = getR2Client();
+      r2Config = getR2Config();
+    } catch (error) {
+      console.error("Configuración R2 inválida:", error);
+      return NextResponse.json(
+        { error: "Configuración de Cloudflare R2 incompleta." },
+        { status: 500 },
+      );
+    }
+
     const body = (await request.json()) as { id?: string };
     const id = String(body.id ?? "").trim();
 
@@ -260,45 +310,71 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Id inválido." }, { status: 400 });
     }
 
-    const currentPoints = await readMapData();
-    const pointToDelete = currentPoints.find(
-      (point) => point.id.toLowerCase() === id.toLowerCase(),
+    const rows = await queryD1<{
+      storage_key?: string;
+      original_filename?: string;
+    }>(
+      `
+        SELECT storage_key, original_filename
+        FROM photos
+        WHERE user_id = ?
+          AND (id = ? OR original_filename = ?)
+        LIMIT 1
+      `,
+      [DEMO_USER_ID, id, id],
     );
 
-    if (!pointToDelete) {
+    const storageKey = String(rows[0]?.storage_key ?? "").trim();
+    if (!storageKey) {
       return NextResponse.json(
         { error: "Foto no encontrada." },
         { status: 404 },
       );
     }
 
-    const candidatePaths = [
-      pointToDelete.fullUrl,
-      pointToDelete.previewUrl,
-      pointToDelete.thumbUrl,
-      pointToDelete.imagePath,
-    ].filter((value): value is string => Boolean(value));
+    const r2Keys = [
+      `photos/${storageKey}-full.webp`,
+      `photos/${storageKey}-preview.webp`,
+      `photos/${storageKey}-thumb.webp`,
+    ];
 
     await Promise.all(
-      candidatePaths.map(async (filePath) => {
-        const relativePath = filePath.replace(/^\/+/, "");
-        const absolutePath = path.join(process.cwd(), "public", relativePath);
-
+      r2Keys.map(async (key) => {
         try {
-          await fs.unlink(absolutePath);
-        } catch {
-          // Si el archivo no existe, continuamos para mantener consistencia del JSON
+          await r2Client.send(
+            new DeleteObjectCommand({
+              Bucket: r2Config.bucketName,
+              Key: key,
+            }),
+          );
+        } catch (error) {
+          console.error(`No se pudo eliminar ${key} en R2:`, error);
         }
       }),
     );
 
-    const updatedPoints = currentPoints.filter(
-      (point) => point.id.toLowerCase() !== id.toLowerCase(),
+    await queryD1(
+      `
+        DELETE FROM photos
+        WHERE user_id = ?
+          AND (id = ? OR original_filename = ?)
+      `,
+      [DEMO_USER_ID, id, id],
     );
 
-    await writeMapData(updatedPoints);
+    const countRows = await queryD1<{ total?: number }>(
+      `
+        SELECT COUNT(1) AS total
+        FROM photos
+        WHERE user_id = ?
+      `,
+      [DEMO_USER_ID],
+    );
 
-    return NextResponse.json({ ok: true, total: updatedPoints.length });
+    return NextResponse.json({
+      ok: true,
+      total: Number(countRows[0]?.total ?? 0),
+    });
   } catch (error) {
     console.error("Error al eliminar foto:", error);
     return NextResponse.json(

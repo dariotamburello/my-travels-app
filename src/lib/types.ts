@@ -35,6 +35,8 @@ export interface PhotoPoint {
     /** Etiqueta completa de ubicación */
     label?: string | null;
   };
+  /** Marcada como favorita por el usuario */
+  isFavorite?: boolean;
 }
 
 /**
