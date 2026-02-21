@@ -1,6 +1,9 @@
 import MapWrapper from "@/src/components/MapWrapper";
 import Header from "@/src/components/Header";
+import PhotoUploader from "@/src/components/PhotoUploader";
 import { PhotoPoint, Trip } from "@/src/lib/types";
+
+export const dynamic = "force-dynamic";
 
 /**
  * Carga los datos del mapa de forma estática
@@ -99,6 +102,8 @@ export default async function Home() {
           </div>
         )}
       </main>
+
+      <PhotoUploader />
     </div>
   );
 }

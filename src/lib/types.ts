@@ -4,8 +4,14 @@
 export interface PhotoPoint {
   /** Identificador único de la foto */
   id: string;
-  /** Ruta relativa a la imagen desde /public */
-  imagePath: string;
+  /** Ruta para miniatura del mapa (100x100 WebP) */
+  thumbUrl?: string;
+  /** Ruta para preview en popup (máx 800px WebP) */
+  previewUrl?: string;
+  /** Ruta para vista fullscreen (máx 1600px WebP) */
+  fullUrl?: string;
+  /** Compatibilidad con datos antiguos */
+  imagePath?: string;
   /** Latitud en formato decimal */
   latitude: number;
   /** Longitud en formato decimal */

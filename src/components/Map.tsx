@@ -2,12 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import L, { DivIcon, LatLngExpression } from "leaflet";
+import { useRouter } from "next/navigation";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "leaflet.markercluster";
 import { PhotoPoint } from "../lib/types";
 import PhotoFullScreen from "./PhotoFullScreen";
+import {
+  attachPhotoPreviewPopupHandlers,
+  buildPhotoPreviewPopupContent,
+} from "./PhotoPreviewModal";
+import ConfirmModal from "./ConfirmModal";
+function getThumbUrl(point: PhotoPoint): string {
+  return (
+    point.thumbUrl || point.previewUrl || point.fullUrl || point.imagePath || ""
+  );
+}
 
 interface MapProps {
   photoPoints: PhotoPoint[];
@@ -25,6 +36,7 @@ export default function Map({
   center = [0, 0],
   zoom = 2,
 }: MapProps) {
+  const router = useRouter();
   const mapRef = useRef<L.Map | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isMapInitialized = useRef(false);
@@ -32,6 +44,9 @@ export default function Map({
   const [fullScreenPhoto, setFullScreenPhoto] = useState<PhotoPoint | null>(
     null,
   );
+  const [photoToDelete, setPhotoToDelete] = useState<PhotoPoint | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     // Solo inicializar si no está ya inicializado
@@ -95,9 +110,15 @@ export default function Map({
 
     // Limpiar marcadores previos
     map.eachLayer((layer) => {
+      const layerWithClass = layer as L.Layer & {
+        options?: {
+          className?: string;
+        };
+      };
+
       if (
         layer instanceof L.MarkerClusterGroup ||
-        (layer.options && (layer as any).options.className === "custom-marker")
+        layerWithClass.options?.className === "custom-marker"
       ) {
         map.removeLayer(layer);
       }
@@ -115,7 +136,9 @@ export default function Map({
         const firstMarker = childMarkers[0];
 
         // Obtener la imagen del primer marcador
-        const imageUrl = (firstMarker as any).photoImagePath || "";
+        const imageUrl =
+          (firstMarker as L.Marker & { photoImagePath?: string })
+            .photoImagePath || "";
 
         return L.divIcon({
           html: `
@@ -134,10 +157,12 @@ export default function Map({
 
     // Agregar marcadores al grupo de clusters
     photoPoints.forEach((point) => {
+      const thumbUrl = getThumbUrl(point);
+
       const icon = new DivIcon({
         html: `
           <div class="photo-marker-wrapper">
-            <div class="photo-marker" style="background-image: url('${point.imagePath}')"></div>
+            <div class="photo-marker" style="background-image: url('${thumbUrl}')"></div>
           </div>
         `,
         className: "custom-marker",
@@ -151,84 +176,26 @@ export default function Map({
       });
 
       // Guardar el imagePath en el marker para acceso posterior
-      (marker as any).photoImagePath = point.imagePath;
+      (marker as L.Marker & { photoImagePath?: string }).photoImagePath =
+        thumbUrl;
 
-      // Crear popup
-      const locationInfo = point.location || {};
-      const cityCountry =
-        [locationInfo.city, locationInfo.country].filter(Boolean).join(", ") ||
-        "Ubicación desconocida";
-      const nameCounty = [locationInfo.name, locationInfo.county]
-        .filter(Boolean)
-        .join(", ");
+      marker.bindPopup(buildPhotoPreviewPopupContent(point));
 
-      const popupContent = `
-        <div class="photo-popup">
-          <img
-            src="${point.imagePath}"
-            alt="${point.title || "Photo"}"
-            class="photo-popup-image"
-            data-point-id="${point.id}"
-            style="cursor: zoom-in;"
-          />
-          <div class="photo-popup-info">
-            <div class="photo-popup-location">
-              <span>${cityCountry}</span>
-              ${
-                locationInfo.label
-                  ? `
-                <button class="info-button" onclick="event.stopPropagation();"
-                        onmouseenter="this.querySelector('.tooltip').style.display='block'"
-                        onmouseleave="this.querySelector('.tooltip').style.display='none'">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="12" y1="16" x2="12" y2="12"></line>
-                    <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                  </svg>
-                  <div class="tooltip">${locationInfo.label}</div>
-                </button>
-              `
-                  : ""
-              }
-            </div>
-            ${nameCounty ? `<div class="photo-popup-place">${nameCounty}</div>` : ""}
-            ${
-              point.dateTime
-                ? `<div class="photo-popup-date">
-                ${new Date(point.dateTime).toLocaleDateString("es-ES", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </div>`
-                : ""
-            }
-          </div>
-        </div>
-      `;
+      marker.on("popupopen", (event: L.PopupEvent) => {
+        const popupElement = event.popup.getElement();
+        if (!popupElement) {
+          return;
+        }
 
-      marker.bindPopup(popupContent);
-
-      // Evento para detectar clic en la imagen y abrir fullscreen
-      marker.on("popupopen", () => {
-        setTimeout(() => {
-          const popupContent = document.querySelector(".leaflet-popup-content");
-          if (popupContent) {
-            const img =
-              popupContent.querySelector<HTMLImageElement>(
-                ".photo-popup-image",
-              );
-            if (img) {
-              img.addEventListener("click", () => {
-                setFullScreenPhoto(point);
-              });
-              img.style.cursor = "zoom-in";
-            }
-          }
-        }, 100);
+        attachPhotoPreviewPopupHandlers(popupElement, {
+          onOpenFullScreen: () => setFullScreenPhoto(point),
+          onDeleteClick: () => {
+            setPhotoToDelete(point);
+            setIsConfirmOpen(true);
+          },
+        });
       });
+
       markers.addLayer(marker);
     });
 
@@ -241,6 +208,37 @@ export default function Map({
       map.setView(mapCenter, mapZoom);
     }
   }, [photoPoints, center, zoom]);
+
+  const handleDeletePhoto = async () => {
+    if (!photoToDelete || isDeleting) {
+      return;
+    }
+
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch("/api/photos/upload", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id: photoToDelete.id }),
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo eliminar la foto");
+      }
+
+      setIsConfirmOpen(false);
+      setPhotoToDelete(null);
+      setFullScreenPhoto(null);
+      router.refresh();
+    } catch {
+      alert("No se pudo eliminar la foto. Intenta nuevamente.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <>
@@ -322,6 +320,23 @@ export default function Map({
           display: flex;
           align-items: center;
           gap: 6px;
+        }
+
+        .photo-popup-delete {
+          margin-left: auto;
+          background: transparent;
+          border: none;
+          padding: 0;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: #6b7280;
+          transition: color 0.2s;
+        }
+
+        .photo-popup-delete:hover {
+          color: #dc2626;
         }
 
         .info-button {
@@ -465,6 +480,23 @@ export default function Map({
         isOpen={!!fullScreenPhoto}
         photo={fullScreenPhoto}
         onClose={() => setFullScreenPhoto(null)}
+      />
+
+      <ConfirmModal
+        isOpen={isConfirmOpen}
+        title="¿Eliminar foto?"
+        message="Esta acción eliminará la imagen de la galería y del mapa."
+        confirmLabel="Sí, eliminar"
+        cancelLabel="Cancelar"
+        isLoading={isDeleting}
+        onConfirm={handleDeletePhoto}
+        onCancel={() => {
+          if (isDeleting) {
+            return;
+          }
+          setIsConfirmOpen(false);
+          setPhotoToDelete(null);
+        }}
       />
 
       <div ref={containerRef} style={{ height: "100%", width: "100%" }} />

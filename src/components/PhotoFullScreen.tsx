@@ -20,6 +20,9 @@ export default function PhotoFullScreen({
 }: PhotoFullScreenProps) {
   if (!photo) return null;
 
+  const fullImageUrl =
+    photo.fullUrl || photo.previewUrl || photo.imagePath || "";
+
   const locationInfo = photo.location || {};
   const cityCountry =
     [locationInfo.city, locationInfo.country].filter(Boolean).join(", ") ||
@@ -83,7 +86,7 @@ export default function PhotoFullScreen({
               }}
             >
               <img
-                src={photo.imagePath}
+                src={fullImageUrl}
                 alt={photo.title || "Photo"}
                 style={{
                   width: "100%",

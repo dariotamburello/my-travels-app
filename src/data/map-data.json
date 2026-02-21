@@ -1,5 +1,40 @@
 [
   {
+    "id": "IMG_7157.heic",
+    "fullUrl": "/photos/img_7157.webp",
+    "previewUrl": "/photos/img_7157-preview.webp",
+    "thumbUrl": "/photos/img_7157-thumb.webp",
+    "imagePath": "/photos/img_7157.webp",
+    "latitude": 41.995511111111114,
+    "longitude": 21.435280555555554,
+    "dateTime": "2024-06-03T22:57:09.000Z",
+    "timestamp": 1717455429000,
+    "title": "IMG_7157.heic",
+    "location": {
+      "country": "Macedonia del Norte",
+      "city": "Skopie",
+      "name": "Кеј 13-ти Ноември",
+      "county": "Град Скопје",
+      "label": "Кеј 13-ти Ноември, Пајко Маало, Центар, Skopie, Општина Центар, Град Скопје, 1111, Macedonia del Norte"
+    }
+  },
+  {
+    "id": "IMG_9564.heic",
+    "imagePath": "/photos/1771635247082-svl4yuup.heic",
+    "latitude": 43.171813888888884,
+    "longitude": 16.443430555555555,
+    "dateTime": "2024-06-23T15:50:22.000Z",
+    "timestamp": 1719157822000,
+    "title": "IMG_9564.heic",
+    "location": {
+      "country": "Croacia",
+      "city": "Grad Hvar",
+      "name": "City centar room Olivia",
+      "county": "Splitsko-dalmatinska županija",
+      "label": "City centar room Olivia, 6a, Jurja Novaka, Hvar, Grad Hvar, Splitsko-dalmatinska županija, 21450, Croacia"
+    }
+  },
+  {
     "id": "Foto 2-7-24, 13 37 36.jpg",
     "imagePath": "/photos/Foto 2-7-24, 13 37 36.jpg",
     "latitude": 52.48111388888889,
