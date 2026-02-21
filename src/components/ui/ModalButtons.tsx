@@ -21,7 +21,9 @@ export function DestructiveButton({ className = "", ...props }: ButtonProps) {
   return (
     <button
       {...props}
-      className={buttonBase(`bg-[#ef4444] text-white hover:bg-[#dc2828] ${className}`)}
+      className={buttonBase(
+        `bg-[#ef4444] text-white hover:bg-[#dc2828] ${className}`,
+      )}
     />
   );
 }

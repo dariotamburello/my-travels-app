@@ -187,10 +187,7 @@ export default function TripStats({
 
               {/* Footer */}
               <div className="px-6 py-4 border-t border-white/10">
-                <SecondaryButton
-                  onClick={onClose}
-                  className="w-full"
-                >
+                <SecondaryButton onClick={onClose} className="w-full">
                   Cerrar
                 </SecondaryButton>
               </div>

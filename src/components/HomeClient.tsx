@@ -43,7 +43,9 @@ function isPhotoWithinTripRange(photo: PhotoPoint, trip: Trip): boolean {
 }
 
 export default function HomeClient({ photoPoints, trips }: HomeClientProps) {
-  const [activeTripId, setActiveTripId] = useState<string | null>(trips[0]?.id ?? null);
+  const [activeTripId, setActiveTripId] = useState<string | null>(
+    trips[0]?.id ?? null,
+  );
 
   const activeTrip = useMemo(
     () => trips.find((trip) => trip.id === activeTripId) ?? null,
@@ -55,7 +57,9 @@ export default function HomeClient({ photoPoints, trips }: HomeClientProps) {
       return photoPoints;
     }
 
-    return photoPoints.filter((photo) => isPhotoWithinTripRange(photo, activeTrip));
+    return photoPoints.filter((photo) =>
+      isPhotoWithinTripRange(photo, activeTrip),
+    );
   }, [activeTrip, photoPoints]);
 
   return (
@@ -96,7 +100,8 @@ export default function HomeClient({ photoPoints, trips }: HomeClientProps) {
                 No hay fotos para este rango
               </h2>
               <p className="text-zinc-600 mb-4">
-                Sube imágenes con metadatos GPS o cambia el viaje activo para ver más fotos.
+                Sube imágenes con metadatos GPS o cambia el viaje activo para
+                ver más fotos.
               </p>
             </div>
           </div>

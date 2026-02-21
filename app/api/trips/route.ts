@@ -54,7 +54,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (startDateIso && endDateIso && new Date(startDateIso) > new Date(endDateIso)) {
+    if (
+      startDateIso &&
+      endDateIso &&
+      new Date(startDateIso) > new Date(endDateIso)
+    ) {
       return NextResponse.json(
         { error: "La fecha de inicio no puede ser mayor que la fecha de fin." },
         { status: 400 },

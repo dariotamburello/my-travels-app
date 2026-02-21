@@ -159,10 +159,7 @@ export default function CreateTripModal({
             >
               Cancelar
             </SecondaryButton>
-            <PrimaryButton
-              type="submit"
-              disabled={isSubmitting}
-            >
+            <PrimaryButton type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Creando..." : "Crear viaje"}
             </PrimaryButton>
           </div>

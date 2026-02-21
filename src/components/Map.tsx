@@ -217,7 +217,8 @@ export default function Map({
       const routePoints = [...photoPoints]
         .map((point) => {
           const timestamp =
-            typeof point.timestamp === "number" && Number.isFinite(point.timestamp)
+            typeof point.timestamp === "number" &&
+            Number.isFinite(point.timestamp)
               ? point.timestamp
               : point.dateTime
                 ? new Date(point.dateTime).getTime()
