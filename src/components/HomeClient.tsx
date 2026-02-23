@@ -72,7 +72,7 @@ export default function HomeClient({ photoPoints, trips }: HomeClientProps) {
           onSelectTrip={(trip) => setActiveTripId(trip.id)}
         />
       ) : (
-        <header className="bg-white border-b border-zinc-200 px-4 md:px-6 py-3 md:py-4 z-10">
+        <header className="z-10 border-b border-zinc-200 bg-white px-4 pb-3 pt-[calc(var(--safe-area-top)+0.75rem)] md:px-6 md:pb-4 md:pt-[calc(var(--safe-area-top)+1rem)]">
           <div className="flex items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
               <h1 className="text-xl md:text-2xl font-semibold text-zinc-900 truncate">

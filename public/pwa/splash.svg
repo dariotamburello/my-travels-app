@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1284" height="2778" viewBox="0 0 1284 2778" role="img" aria-label="GeoGallery splash">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+  <rect width="1284" height="2778" fill="url(#bg)"/>
+  <g transform="translate(642 1280)">
+    <circle cx="0" cy="0" r="190" fill="#1d4ed8"/>
+    <path d="M0-140c-76 0-138 60-138 135 0 95 138 241 138 241s138-146 138-241c0-75-62-135-138-135zm0 188a54 54 0 1 1 0-108 54 54 0 0 1 0 108z" fill="#f8fafc"/>
+  </g>
+  <text x="642" y="1620" text-anchor="middle" font-size="92" font-family="Arial, Helvetica, sans-serif" fill="#e2e8f0" font-weight="700">GeoGallery</text>
+  <text x="642" y="1720" text-anchor="middle" font-size="44" font-family="Arial, Helvetica, sans-serif" fill="#94a3b8">Tu mapa visual de recuerdos</text>
+</svg>
